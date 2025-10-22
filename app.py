@@ -3,14 +3,14 @@ import plotly.express as px
 import pandas as pd
 import requests
 
-def get_estat_data_safe():
-    """安全なデータ取得（段階的エラーチェック付き）"""
+def debug_api_call():
+    """API呼び出しの詳細デバッグ"""
     try:
         st.write("### ステップ1: APIキー取得")
         app_id = st.secrets["e_stat"]["app_id"]
         st.success(f"✅ APIキー取得成功")
         
-        st.write("### ステップ2: API呼び出し")
+        st.write("### ステップ2: API呼び出し詳細")
         url = 'https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData'
         params = {
             'appId': app_id,
@@ -18,94 +18,91 @@ def get_estat_data_safe():
             'lang': 'J'
         }
         
-        response = requests.get(url, params=params)
-        data = response.json()
+        st.write("**リクエスト情報:**")
+        st.write(f"URL: {url}")
+        st.write(f"パラメータ: {params}")
         
-        if 'GET_STATS_DATA' in data and data['GET_STATS_DATA']['RESULT']['STATUS'] == '0':
-            st.success("✅ API呼び出し成功")
+        response = requests.get(url, params=params)
+        
+        st.write("**レスポンス情報:**")
+        st.write(f"ステータスコード: {response.status_code}")
+        st.write(f"レスポンスヘッダー: {dict(response.headers)}")
+        
+        if response.status_code == 200:
+            st.success("✅ HTTP通信成功")
             
-            st.write("### ステップ3: データ構造確認")
-            values = data['GET_STATS_DATA']['STATISTICAL_DATA']['DATA_INF']['VALUE']
-            st.write(f"データ件数: {len(values)}")
-            st.write("サンプルデータ:")
-            st.json(values[0])  # 最初の1件を表示
-            
-            st.write("### ステップ4: データ変換")
-            
-            # 都道府県マッピング（一部のみテスト）
-            prefectures = {
-                '01000': '北海道', '13000': '東京都', '27000': '大阪府'
-            }
-            
-            # 緯度経度（一部のみテスト）
-            coordinates = {
-                '北海道': [43.06, 141.35], 
-                '東京都': [35.68, 139.76], 
-                '大阪府': [34.69, 135.50]
-            }
-            
-            # データ変換（最初の10件のみ）
-            map_data = []
-            for i, value in enumerate(values[:10]):
-                area_code = value.get('@area')
-                st.write(f"処理中 {i+1}: area_code={area_code}")
+            try:
+                data = response.json()
+                st.write("**JSONパース成功**")
                 
-                if area_code in prefectures:
-                    pref_name = prefectures[area_code]
-                    if pref_name in coordinates:
-                        map_data.append({
-                            '都道府県': pref_name,
-                            '出入国者数': int(value.get('$', 0)),
-                            '緯度': coordinates[pref_name][0],
-                            '経度': coordinates[pref_name][1]
-                        })
-                        st.write(f"✅ {pref_name}: {value.get('$', 0)}人")
-            
-            st.write("### ステップ5: DataFrame作成")
-            df = pd.DataFrame(map_data)
-            st.write(f"DataFrame作成成功: {len(df)}行")
-            st.dataframe(df)
-            
-            return df
+                # レスポンス構造確認
+                st.write("**レスポンス構造:**")
+                st.write(f"トップレベルキー: {list(data.keys())}")
+                
+                if 'GET_STATS_DATA' in data:
+                    result = data['GET_STATS_DATA']['RESULT']
+                    status = result.get('STATUS')
+                    message = result.get('ERROR_MSG', '')
+                    
+                    st.write(f"**API結果:**")
+                    st.write(f"STATUS: {status}")
+                    st.write(f"MESSAGE: {message}")
+                    
+                    if status == '0':
+                        st.success("✅ API呼び出し成功！")
+                        
+                        # データ構造確認
+                        if 'STATISTICAL_DATA' in data['GET_STATS_DATA']:
+                            stat_data = data['GET_STATS_DATA']['STATISTICAL_DATA']
+                            st.write("**統計データ構造:**")
+                            st.write(f"キー: {list(stat_data.keys())}")
+                            
+                            if 'DATA_INF' in stat_data:
+                                data_inf = stat_data['DATA_INF']
+                                if 'VALUE' in data_inf:
+                                    values = data_inf['VALUE']
+                                    st.write(f"データ件数: {len(values)}")
+                                    st.write("最初のデータ:")
+                                    st.json(values[0])
+                                else:
+                                    st.error("❌ VALUE キーが見つかりません")
+                            else:
+                                st.error("❌ DATA_INF キーが見つかりません")
+                        else:
+                            st.error("❌ STATISTICAL_DATA キーが見つかりません")
+                    else:
+                        st.error(f"❌ APIエラー: STATUS={status}, MESSAGE={message}")
+                else:
+                    st.error("❌ GET_STATS_DATA キーが見つかりません")
+                    st.write("実際のレスポンス:")
+                    st.json(data)
+                    
+            except Exception as json_error:
+                st.error(f"❌ JSONパースエラー: {json_error}")
+                st.write("生レスポンス:")
+                st.text(response.text[:1000])  # 最初の1000文字
+                
         else:
-            st.error("❌ API呼び出し失敗")
-            return None
+            st.error(f"❌ HTTP通信失敗: {response.status_code}")
+            st.write("エラーレスポンス:")
+            st.text(response.text[:1000])
             
     except Exception as e:
-        st.error(f"❌ エラー発生: {e}")
+        st.error(f"❌ 予期しないエラー: {e}")
         import traceback
         st.code(traceback.format_exc())
-        return None
 
 def main():
     st.set_page_config(
-        page_title="日本出入国者数マップ（デバッグ版）",
-        page_icon="🗾",
+        page_title="API詳細デバッグ",
+        page_icon="🔍",
         layout="wide"
     )
     
-    st.title('🗾 日本出入国者数マップ（デバッグ版）')
+    st.title('🔍 API詳細デバッグ')
     
-    if st.button('📊 安全なデータ取得テスト'):
-        df = get_estat_data_safe()
-        
-        if df is not None and len(df) > 0:
-            st.write("### 🎉 成功！簡単な地図表示")
-            
-            fig = px.scatter_mapbox(
-                df,
-                lat='緯度',
-                lon='経度',
-                hover_name='都道府県',
-                hover_data=['出入国者数'],
-                color='出入国者数',
-                size='出入国者数',
-                zoom=4.5,
-                height=400
-            )
-            
-            fig.update_layout(mapbox_style="open-street-map")
-            st.plotly_chart(fig, use_container_width=True)
+    if st.button('🔍 詳細デバッグ実行'):
+        debug_api_call()
 
 if __name__ == "__main__":
     main()
