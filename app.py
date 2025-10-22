@@ -2,9 +2,10 @@ import streamlit as st
 import plotly.express as px
 import pandas as pd
 import requests
+import time
 
 def get_estat_data():
-    """e-Statから出入国者数データを取得"""
+    """e-Statから出入国者数データを取得（年代別対応）"""
     try:
         app_id = st.secrets["e_stat"]["app_id"]
         
@@ -18,7 +19,6 @@ def get_estat_data():
         response = requests.get(url, params=params)
         data = response.json()
         
-        # 修正: STATUS='0'（文字列）で成功判定
         if 'GET_STATS_DATA' in data and str(data['GET_STATS_DATA']['RESULT']['STATUS']) == '0':
             values = data['GET_STATS_DATA']['STATISTICAL_DATA']['DATA_INF']['VALUE']
             
@@ -58,110 +58,179 @@ def get_estat_data():
                 '鹿児島県': [31.56, 130.56], '沖縄県': [26.21, 127.68]
             }
             
-            # データ変換
+            # データ変換（年代情報も含める）
             map_data = []
+            available_years = set()
+            
             for value in values:
                 area_code = value.get('@area')
-                if area_code in prefectures:
+                time_code = value.get('@time', '')
+                
+                # 年を抽出（例：2020001011 → 2020）
+                year = None
+                if len(time_code) >= 4:
+                    try:
+                        year = int(time_code[:4])
+                        available_years.add(year)
+                    except:
+                        continue
+                
+                if area_code in prefectures and year:
                     pref_name = prefectures[area_code]
                     if pref_name in coordinates:
                         map_data.append({
                             '都道府県': pref_name,
                             '出入国者数': int(value.get('$', 0)),
                             '緯度': coordinates[pref_name][0],
-                            '経度': coordinates[pref_name][1]
+                            '経度': coordinates[pref_name][1],
+                            '年': year
                         })
             
-            return pd.DataFrame(map_data)
+            df = pd.DataFrame(map_data)
+            return df, sorted(list(available_years))
         else:
             st.error("APIからデータを取得できませんでした")
-            return None
+            return None, []
         
     except Exception as e:
         st.error(f"データ取得エラー: {e}")
+        return None, []
+
+def create_map(df, selected_year):
+    """指定年のデータで地図を作成"""
+    year_data = df[df['年'] == selected_year]
+    
+    if len(year_data) == 0:
+        st.warning(f"{selected_year}年のデータがありません")
         return None
+    
+    fig = px.scatter_mapbox(
+        year_data,
+        lat='緯度',
+        lon='経度',
+        hover_name='都道府県',
+        hover_data=['出入国者数', '年'],
+        color='出入国者数',
+        size='出入国者数',
+        color_continuous_scale='Viridis',
+        size_max=50,
+        zoom=4.5,
+        height=600,
+        title=f'{selected_year}年 都道府県別出入国者数'
+    )
+    
+    fig.update_layout(
+        mapbox_style="open-street-map",
+        coloraxis_colorbar=dict(
+            title="出入国者数（人）"
+        )
+    )
+    
+    return fig
 
 def main():
     st.set_page_config(
-        page_title="日本出入国者数マップ",
+        page_title="日本出入国者数マップ（年代別）",
         page_icon="🗾",
         layout="wide"
     )
     
-    st.title('🗾 日本出入国者数マップ')
-    st.write('e-Statデータを使用した都道府県別出入国者数の可視化（2020年）')
+    st.title('🗾 日本出入国者数マップ（年代別）')
+    st.write('e-Statデータを使用した都道府県別出入国者数の可視化')
     
     # データ取得
     with st.spinner('データを取得中...'):
-        df = get_estat_data()
+        df, available_years = get_estat_data()
     
     if df is not None and len(df) > 0:
-        # 地図表示
-        fig = px.scatter_mapbox(
-            df,
-            lat='緯度',
-            lon='経度',
-            hover_name='都道府県',
-            hover_data=['出入国者数'],
-            color='出入国者数',
-            size='出入国者数',
-            color_continuous_scale='Viridis',
-            size_max=50,
-            zoom=4.5,
-            height=600,
-            title='都道府県別出入国者数（2020年）'
-        )
         
-        fig.update_layout(
-            mapbox_style="open-street-map",
-            coloraxis_colorbar=dict(
-                title="出入国者数（人）"
+        # サイドバーで年選択
+        st.sidebar.header('表示設定')
+        
+        if available_years:
+            selected_year = st.sidebar.selectbox(
+                '表示年を選択',
+                available_years,
+                index=len(available_years)-1  # 最新年をデフォルト
             )
-        )
-        
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # 統計情報
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.metric("総出入国者数", f"{df['出入国者数'].sum():,}人")
-        
-        with col2:
-            max_pref = df.loc[df['出入国者数'].idxmax()]
-            st.metric("最多", f"{max_pref['都道府県']}: {max_pref['出入国者数']:,}人")
-        
-        with col3:
-            st.metric("平均", f"{df['出入国者数'].mean():.0f}人")
-        
-        # データテーブル
-        st.subheader('📊 都道府県別データ')
-        
-        # ランキング表示
-        df_sorted = df.sort_values('出入国者数', ascending=False).reset_index(drop=True)
-        df_sorted.index += 1  # 1から始まるランキング
-        
-        st.dataframe(
-            df_sorted[['都道府県', '出入国者数']],
-            use_container_width=True
-        )
-        
-        # 簡単な分析
-        st.subheader('📈 簡単な分析')
-        
-        # 上位5都道府県のグラフ
-        top5 = df_sorted.head(5)
-        
-        fig_bar = px.bar(
-            top5,
-            x='都道府県',
-            y='出入国者数',
-            title='出入国者数 上位5都道府県',
-            color='出入国者数',
-            color_continuous_scale='Blues'
-        )
-        
-        st.plotly_chart(fig_bar, use_container_width=True)
+            
+            # アニメーション機能
+            if len(available_years) > 1:
+                if st.sidebar.button('▶️ 年代変化アニメーション'):
+                    placeholder = st.empty()
+                    
+                    for year in available_years:
+                        fig = create_map(df, year)
+                        if fig:
+                            placeholder.plotly_chart(fig, use_container_width=True)
+                        time.sleep(1.5)  # 1.5秒間隔
+            
+            # 選択年の地図表示
+            fig = create_map(df, selected_year)
+            if fig:
+                st.plotly_chart(fig, use_container_width=True)
+            
+            # 選択年の統計情報
+            year_data = df[df['年'] == selected_year]
+            
+            if len(year_data) > 0:
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    st.metric("総出入国者数", f"{year_data['出入国者数'].sum():,}人")
+                
+                with col2:
+                    max_pref = year_data.loc[year_data['出入国者数'].idxmax()]
+                    st.metric("最多", f"{max_pref['都道府県']}: {max_pref['出入国者数']:,}人")
+                
+                with col3:
+                    st.metric("平均", f"{year_data['出入国者数'].mean():.0f}人")
+                
+                # データテーブル
+                st.subheader(f'📊 {selected_year}年 都道府県別データ')
+                
+                # ランキング表示
+                df_sorted = year_data.sort_values('出入国者数', ascending=False).reset_index(drop=True)
+                df_sorted.index += 1  # 1から始まるランキング
+                
+                st.dataframe(
+                    df_sorted[['都道府県', '出入国者数']],
+                    use_container_width=True
+                )
+                
+                # 上位5都道府県のグラフ
+                st.subheader('📈 上位5都道府県')
+                top5 = df_sorted.head(5)
+                
+                fig_bar = px.bar(
+                    top5,
+                    x='都道府県',
+                    y='出入国者数',
+                    title=f'{selected_year}年 出入国者数 上位5都道府県',
+                    color='出入国者数',
+                    color_continuous_scale='Blues'
+                )
+                
+                st.plotly_chart(fig_bar, use_container_width=True)
+                
+                # 年代比較（複数年データがある場合）
+                if len(available_years) > 1:
+                    st.subheader('📈 年代比較')
+                    
+                    # 全国合計の年代推移
+                    yearly_total = df.groupby('年')['出入国者数'].sum().reset_index()
+                    
+                    fig_line = px.line(
+                        yearly_total,
+                        x='年',
+                        y='出入国者数',
+                        title='全国出入国者数の年代推移',
+                        markers=True
+                    )
+                    
+                    st.plotly_chart(fig_line, use_container_width=True)
+        else:
+            st.error("利用可能な年データがありません")
         
     else:
         st.error("データの取得に失敗しました。")
