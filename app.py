@@ -5,81 +5,63 @@ import numpy as np
 import time
 import requests
 
-def search_simple():
+def test_specific_stats(stats_id):
     try:
         app_id = st.secrets["e_stat"]["app_id"]
         
-        url = 'https://api.e-stat.go.jp/rest/3.0/app/json/getStatsList'
+        url = 'https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData'
         params = {
             'appId': app_id,
+            'statsDataId': stats_id,
             'lang': 'J'
         }
         
         response = requests.get(url, params=params)
         data = response.json()
         
-        st.write("シンプル検索結果:")
-        st.json(data)
-        
-    except Exception as e:
-        st.error(f"❌ 接続エラー: {e}")
-
-def search_stats_list():
-    try:
-        app_id = st.secrets["e_stat"]["app_id"]
-        
-        url = 'https://api.e-stat.go.jp/rest/3.0/app/json/getStatsList'
-        params = {
-            'appId': app_id,
-            'lang': 'J',
-            'searchWord': '人口',
-            'searchKind': '1',
-            'collectArea': '1'
-        }
-        
-        response = requests.get(url, params=params)
-        data = response.json()
-        
-        st.write("レスポンス全体:")
-        st.json(data)
-        
-        if 'GET_STATS_LIST' in data:
-            result = data['GET_STATS_LIST']['RESULT']
+        if 'GET_STATS_DATA' in data:
+            result = data['GET_STATS_DATA']['RESULT']
             status = result['STATUS']
             
-            st.write(f"ステータス: {status}")
-            st.write(f"件数: {result.get('TOTAL_NUMBER', 0)}")
-            
-            if status == '0' and 'DATALIST_INF' in data['GET_STATS_LIST']:
-                st.success("✅ 統計表検索成功！")
+            if status == '0':
+                st.success(f"✅ 統計表ID {stats_id} のデータ取得成功！")
                 
-                datalist = data['GET_STATS_LIST']['DATALIST_INF']
-                if 'TABLE_INF' in datalist:
-                    stats_list = datalist['TABLE_INF']
-                    
-                    if not isinstance(stats_list, list):
-                        stats_list = [stats_list]
-                    
-                    df_stats = []
-                    for stat in stats_list[:20]:
-                        df_stats.append({
-                            '統計表ID': stat['@id'],
-                            'タイトル': stat['TITLE'],
-                            '統計名': stat['STAT_NAME'],
-                            '調査年月': stat.get('CYCLE', 'N/A')
-                        })
-                    
-                    st.dataframe(pd.DataFrame(df_stats))
-                else:
-                    st.warning("統計表データが見つかりませんでした")
+                # データ構造を確認
+                st.write("### データ構造:")
+                statistical_data = data['GET_STATS_DATA']['STATISTICAL_DATA']
+                
+                # 統計表の基本情報
+                table_inf = statistical_data['TABLE_INF']
+                st.write(f"**統計表名**: {table_inf['TITLE']}")
+                st.write(f"**統計名**: {table_inf['STATISTICS_NAME']}")
+                
+                # 分類情報
+                if 'CLASS_INF' in statistical_data:
+                    st.write("### 分類情報:")
+                    class_inf = statistical_data['CLASS_INF']['CLASS_OBJ']
+                    for cls in class_inf:
+                        st.write(f"- {cls['@name']}: {cls['@id']}")
+                
+                # データサンプル
+                if 'DATA_INF' in statistical_data:
+                    values = statistical_data['DATA_INF']['VALUE']
+                    st.write(f"### データ件数: {len(values)}")
+                    st.write("### データサンプル（最初の5件）:")
+                    for i, value in enumerate(values[:5]):
+                        st.write(f"{i+1}. {value}")
+                
+                return data
             else:
                 error_msg = result.get('ERROR_MSG', '不明なエラー')
-                st.error(f"❌ 検索エラー: {error_msg}")
+                st.error(f"❌ APIエラー: {error_msg}")
         else:
             st.error("❌ 予期しないレスポンス形式")
+            st.json(data)
             
     except Exception as e:
-        st.error(f"❌ 接続エラー: {e}")
+        st.error(f"❌ エラー: {e}")
+    
+    return None
 
 def create_sample_data():
     prefectures = ['北海道', '青森', '岩手', '宮城', '秋田', '山形', '福島', 
@@ -124,13 +106,10 @@ def main():
     st.write('2000年〜2020年の人口変化を時系列で可視化')
     
     st.sidebar.header('API設定')
-    if st.sidebar.button('🔍 シンプル検索'):
-        with st.spinner('検索中...'):
-            search_simple()
-    
-    if st.sidebar.button('🔍 統計表検索'):
-        with st.spinner('統計表検索中...'):
-            search_stats_list()
+    stats_id = st.sidebar.text_input('統計表ID', '0004029363')
+    if st.sidebar.button('🔍 統計表テスト'):
+        if stats_id:
+            test_specific_stats(stats_id)
     
     df = create_sample_data()
     
