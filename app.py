@@ -3,8 +3,44 @@ import plotly.express as px
 import pandas as pd
 import numpy as np
 import time
+import requests
+
+def test_e_stat_api():
+    """e-Stat API の動作確認"""
+    try:
+        app_id = st.secrets["e_stat"]["app_id"]
+        
+        url = 'https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData'
+        params = {
+            'appId': app_id,
+            'statsDataId': 'C0020050213000',  # 人口統計
+            'cdCat01': '%23A03503',  # 老年人口割合
+            'cdArea': '13000',  # 東京都
+            'lang': 'J'
+        }
+        
+        response = requests.get(url, params=params)
+        data = response.json()
+        
+        if 'GET_STATS_DATA' in data:
+            status = data['GET_STATS_DATA']['RESULT']['STATUS']
+            if status == '0':
+                st.success("✅ e-Stat API 接続成功！")
+                st.json(data)
+                return True
+            else:
+                error_msg = data['GET_STATS_DATA']['RESULT']['ERROR_MSG']
+                st.error(f"❌ APIエラー: {error_msg}")
+        else:
+            st.error("❌ 予期しないレスポンス形式")
+            
+    except Exception as e:
+        st.error(f"❌ 接続エラー: {e}")
+    
+    return False
 
 def create_sample_data():
+    # 既存のコード（変更なし）
     prefectures = ['北海道', '青森', '岩手', '宮城', '秋田', '山形', '福島', 
                    '茨城', '栃木', '群馬', '埼玉', '千葉', '東京', '神奈川']
     
@@ -46,6 +82,12 @@ def main():
     st.title('🗾 日本人口変化アニメーション地図')
     st.write('2000年〜2020年の人口変化を時系列で可視化')
     
+    # API テスト機能を追加
+    st.sidebar.header('API設定')
+    if st.sidebar.button('🔍 e-Stat API テスト'):
+        with st.spinner('API接続中...'):
+            test_e_stat_api()
+    
     df = create_sample_data()
     
     st.sidebar.header('表示設定')
@@ -58,6 +100,7 @@ def main():
         step=1
     )
     
+    # 既存のコード（アニメーション機能など）は変更なし
     if st.sidebar.button('▶️ アニメーション再生'):
         placeholder = st.empty()
         
@@ -122,3 +165,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+3. requirements.txt に reque
