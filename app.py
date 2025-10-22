@@ -165,4 +165,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-3. requirements.txt に reque
