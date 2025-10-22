@@ -5,6 +5,25 @@ import numpy as np
 import time
 import requests
 
+def search_simple():
+    try:
+        app_id = st.secrets["e_stat"]["app_id"]
+        
+        url = 'https://api.e-stat.go.jp/rest/3.0/app/json/getStatsList'
+        params = {
+            'appId': app_id,
+            'lang': 'J'
+        }
+        
+        response = requests.get(url, params=params)
+        data = response.json()
+        
+        st.write("シンプル検索結果:")
+        st.json(data)
+        
+    except Exception as e:
+        st.error(f"❌ 接続エラー: {e}")
+
 def search_stats_list():
     try:
         app_id = st.secrets["e_stat"]["app_id"]
@@ -13,74 +32,54 @@ def search_stats_list():
         params = {
             'appId': app_id,
             'lang': 'J',
-            'surveyYears': '2020',
-            'searchWord': '人口'
+            'searchWord': '人口',
+            'searchKind': '1',
+            'collectArea': '1'
         }
         
         response = requests.get(url, params=params)
         data = response.json()
         
+        st.write("レスポンス全体:")
+        st.json(data)
+        
         if 'GET_STATS_LIST' in data:
-            status = data['GET_STATS_LIST']['RESULT']['STATUS']
-            if status == '0':
+            result = data['GET_STATS_LIST']['RESULT']
+            status = result['STATUS']
+            
+            st.write(f"ステータス: {status}")
+            st.write(f"件数: {result.get('TOTAL_NUMBER', 0)}")
+            
+            if status == '0' and 'DATALIST_INF' in data['GET_STATS_LIST']:
                 st.success("✅ 統計表検索成功！")
                 
-                stats_list = data['GET_STATS_LIST']['DATALIST_INF']['TABLE_INF']
-                
-                df_stats = []
-                for stat in stats_list[:10]:
-                    df_stats.append({
-                        '統計表ID': stat['@id'],
-                        'タイトル': stat['TITLE'],
-                        '統計名': stat['STAT_NAME'],
-                        '調査年月': stat.get('CYCLE', 'N/A')
-                    })
-                
-                st.dataframe(pd.DataFrame(df_stats))
-                return data
+                datalist = data['GET_STATS_LIST']['DATALIST_INF']
+                if 'TABLE_INF' in datalist:
+                    stats_list = datalist['TABLE_INF']
+                    
+                    if not isinstance(stats_list, list):
+                        stats_list = [stats_list]
+                    
+                    df_stats = []
+                    for stat in stats_list[:20]:
+                        df_stats.append({
+                            '統計表ID': stat['@id'],
+                            'タイトル': stat['TITLE'],
+                            '統計名': stat['STAT_NAME'],
+                            '調査年月': stat.get('CYCLE', 'N/A')
+                        })
+                    
+                    st.dataframe(pd.DataFrame(df_stats))
+                else:
+                    st.warning("統計表データが見つかりませんでした")
             else:
-                error_msg = data['GET_STATS_LIST']['RESULT']['ERROR_MSG']
+                error_msg = result.get('ERROR_MSG', '不明なエラー')
                 st.error(f"❌ 検索エラー: {error_msg}")
         else:
             st.error("❌ 予期しないレスポンス形式")
             
     except Exception as e:
         st.error(f"❌ 接続エラー: {e}")
-    
-    return None
-
-def test_e_stat_api():
-    try:
-        app_id = st.secrets["e_stat"]["app_id"]
-        
-        url = 'https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData'
-        params = {
-            'appId': app_id,
-            'statsDataId': 'C0020050213000',
-            'cdCat01': '%23A03503',
-            'cdArea': '13000',
-            'lang': 'J'
-        }
-        
-        response = requests.get(url, params=params)
-        data = response.json()
-        
-        if 'GET_STATS_DATA' in data:
-            status = data['GET_STATS_DATA']['RESULT']['STATUS']
-            if status == '0':
-                st.success("✅ e-Stat API 接続成功！")
-                st.json(data)
-                return True
-            else:
-                error_msg = data['GET_STATS_DATA']['RESULT']['ERROR_MSG']
-                st.error(f"❌ APIエラー: {error_msg}")
-        else:
-            st.error("❌ 予期しないレスポンス形式")
-            
-    except Exception as e:
-        st.error(f"❌ 接続エラー: {e}")
-    
-    return False
 
 def create_sample_data():
     prefectures = ['北海道', '青森', '岩手', '宮城', '秋田', '山形', '福島', 
@@ -125,13 +124,13 @@ def main():
     st.write('2000年〜2020年の人口変化を時系列で可視化')
     
     st.sidebar.header('API設定')
+    if st.sidebar.button('🔍 シンプル検索'):
+        with st.spinner('検索中...'):
+            search_simple()
+    
     if st.sidebar.button('🔍 統計表検索'):
         with st.spinner('統計表検索中...'):
             search_stats_list()
-    
-    if st.sidebar.button('🔍 e-Stat API テスト'):
-        with st.spinner('API接続中...'):
-            test_e_stat_api()
     
     df = create_sample_data()
     
