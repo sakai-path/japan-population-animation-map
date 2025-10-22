@@ -88,158 +88,164 @@ def get_estat_data_filtered(cat01_filter='001', cat02_filter='000', cat03_filter
 
 def main():
     st.set_page_config(
-        page_title="日本出入国者数マップ（比較機能付き）",
+        page_title="日本出入国者数マップ（比較表示）",
         page_icon="🗾",
         layout="wide"
     )
     
-    st.title('🗾 日本出入国者数マップ（比較機能付き）')
+    st.title('🗾 日本出入国者数マップ（比較表示）')
     st.write('e-Statデータを使用した都道府県別出入国者数の可視化（2020年10月～2021年9月）')
     
-    # サイドバーでフィルタ設定
-    st.sidebar.header('📊 データフィルタ')
+    # 比較モード選択
+    st.sidebar.header('📊 表示モード')
     
-    # 入国/出国選択
-    cat01_options = {
-        '入国者数': '001',
-        '出国者数': '002'
-    }
-    cat01_label = st.sidebar.selectbox('入国/出国', list(cat01_options.keys()))
-    cat01_value = cat01_options[cat01_label]
+    display_mode = st.sidebar.radio(
+        '表示方法を選択',
+        ['単一表示', '左右比較表示', '数値比較表']
+    )
     
-    # 男女別選択
-    cat02_options = {
-        '男女計': '000',
-        '男性': '001',
-        '女性': '002'
-    }
-    cat02_label = st.sidebar.selectbox('男女別', list(cat02_options.keys()))
-    cat02_value = cat02_options[cat02_label]
-    
-    # 日本人/外国人選択
-    cat03_options = {
-        '日本人': '001',
-        '外国人': '002'
-    }
-    cat03_label = st.sidebar.selectbox('日本人/外国人', list(cat03_options.keys()))
-    cat03_value = cat03_options[cat03_label]
-    
-    # 比較機能
-    st.sidebar.header('🔄 クイック比較')
-    if st.sidebar.button('🇯🇵 日本人 vs 🌍 外国人'):
-        col1, col2 = st.columns(2)
+    if display_mode == '単一表示':
+        # 従来の単一表示
+        st.sidebar.header('フィルタ設定')
         
-        with col1:
-            st.subheader('🇯🇵 日本人')
-            df_jp = get_estat_data_filtered(cat01_value, cat02_value, '001')
-            if df_jp is not None and len(df_jp) > 0:
-                st.metric("総人数", f"{df_jp['人数'].sum():,}人")
-                top_jp = df_jp.loc[df_jp['人数'].idxmax()]
-                st.write(f"最多: {top_jp['都道府県']} ({top_jp['人数']:,}人)")
+        cat01_options = {'入国者数': '001', '出国者数': '002'}
+        cat01_label = st.sidebar.selectbox('入国/出国', list(cat01_options.keys()))
+        cat01_value = cat01_options[cat01_label]
         
-        with col2:
-            st.subheader('🌍 外国人')
-            df_fg = get_estat_data_filtered(cat01_value, cat02_value, '002')
-            if df_fg is not None and len(df_fg) > 0:
-                st.metric("総人数", f"{df_fg['人数'].sum():,}人")
-                top_fg = df_fg.loc[df_fg['人数'].idxmax()]
-                st.write(f"最多: {top_fg['都道府県']} ({top_fg['人数']:,}人)")
-    
-    if st.sidebar.button('📥 入国 vs 📤 出国'):
-        col1, col2 = st.columns(2)
+        cat02_options = {'男女計': '000', '男性': '001', '女性': '002'}
+        cat02_label = st.sidebar.selectbox('男女別', list(cat02_options.keys()))
+        cat02_value = cat02_options[cat02_label]
         
-        with col1:
-            st.subheader('📥 入国')
-            df_in = get_estat_data_filtered('001', cat02_value, cat03_value)
-            if df_in is not None and len(df_in) > 0:
-                st.metric("総人数", f"{df_in['人数'].sum():,}人")
-                top_in = df_in.loc[df_in['人数'].idxmax()]
-                st.write(f"最多: {top_in['都道府県']} ({top_in['人数']:,}人)")
+        cat03_options = {'日本人': '001', '外国人': '002'}
+        cat03_label = st.sidebar.selectbox('日本人/外国人', list(cat03_options.keys()))
+        cat03_value = cat03_options[cat03_label]
         
-        with col2:
-            st.subheader('📤 出国')
-            df_out = get_estat_data_filtered('002', cat02_value, cat03_value)
-            if df_out is not None and len(df_out) > 0:
-                st.metric("総人数", f"{df_out['人数'].sum():,}人")
-                top_out = df_out.loc[df_out['人数'].idxmax()]
-                st.write(f"最多: {top_out['都道府県']} ({top_out['人数']:,}人)")
-    
-    # データ取得
-    with st.spinner('データを取得中...'):
         df = get_estat_data_filtered(cat01_value, cat02_value, cat03_value)
-    
-    if df is not None and len(df) > 0:
         
-        # 現在の設定を表示
-        st.info(f"📋 現在の表示: {cat01_label} × {cat02_label} × {cat03_label}")
-        
-        # 地図表示
-        fig = px.scatter_mapbox(
-            df,
-            lat='緯度',
-            lon='経度',
-            hover_name='都道府県',
-            hover_data=['人数'],
-            color='人数',
-            size='人数',
-            color_continuous_scale='Viridis',
-            size_max=50,
-            zoom=4.5,
-            height=600,
-            title=f'{cat01_label}（{cat02_label}・{cat03_label}）'
-        )
-        
-        fig.update_layout(
-            mapbox_style="open-street-map",
-            coloraxis_colorbar=dict(
-                title="人数"
+        if df is not None and len(df) > 0:
+            st.info(f"📋 表示中: {cat01_label} × {cat02_label} × {cat03_label}")
+            
+            fig = px.scatter_mapbox(
+                df,
+                lat='緯度',
+                lon='経度',
+                hover_name='都道府県',
+                hover_data=['人数'],
+                color='人数',
+                size='人数',
+                color_continuous_scale='Viridis',
+                size_max=50,
+                zoom=4.5,
+                height=600,
+                title=f'{cat01_label}（{cat02_label}・{cat03_label}）'
             )
+            
+            fig.update_layout(mapbox_style="open-street-map")
+            st.plotly_chart(fig, use_container_width=True)
+    
+    elif display_mode == '左右比較表示':
+        # 左右比較表示
+        st.sidebar.header('比較設定')
+        
+        comparison_type = st.sidebar.selectbox(
+            '比較項目',
+            ['日本人 vs 外国人', '入国 vs 出国', '男性 vs 女性']
         )
         
-        st.plotly_chart(fig, use_container_width=True)
+        if comparison_type == '日本人 vs 外国人':
+            df1 = get_estat_data_filtered('001', '000', '001')  # 入国・男女計・日本人
+            df2 = get_estat_data_filtered('001', '000', '002')  # 入国・男女計・外国人
+            title1, title2 = '🇯🇵 日本人（入国）', '🌍 外国人（入国）'
+            
+        elif comparison_type == '入国 vs 出国':
+            df1 = get_estat_data_filtered('001', '000', '001')  # 入国・男女計・日本人
+            df2 = get_estat_data_filtered('002', '000', '001')  # 出国・男女計・日本人
+            title1, title2 = '📥 入国（日本人）', '📤 出国（日本人）'
+            
+        else:  # 男性 vs 女性
+            df1 = get_estat_data_filtered('001', '001', '001')  # 入国・男性・日本人
+            df2 = get_estat_data_filtered('001', '002', '001')  # 入国・女性・日本人
+            title1, title2 = '👨 男性（入国・日本人）', '👩 女性（入国・日本人）'
         
-        # 統計情報
-        col1, col2, col3 = st.columns(3)
+        col1, col2 = st.columns(2)
         
         with col1:
-            st.metric("総人数", f"{df['人数'].sum():,}人")
+            st.subheader(title1)
+            if df1 is not None and len(df1) > 0:
+                # 全体で最大値を取得してスケールを統一
+                max_val = max(df1['人数'].max(), df2['人数'].max() if df2 is not None else 0)
+                
+                fig1 = px.scatter_mapbox(
+                    df1,
+                    lat='緯度',
+                    lon='経度',
+                    hover_name='都道府県',
+                    hover_data=['人数'],
+                    color='人数',
+                    size='人数',
+                    color_continuous_scale='Reds',
+                    size_max=40,
+                    zoom=4.5,
+                    height=500,
+                    range_color=[0, max_val]  # スケール統一
+                )
+                fig1.update_layout(mapbox_style="open-street-map")
+                st.plotly_chart(fig1, use_container_width=True)
+                
+                st.metric("総人数", f"{df1['人数'].sum():,}人")
         
         with col2:
-            max_pref = df.loc[df['人数'].idxmax()]
-            st.metric("最多", f"{max_pref['都道府県']}: {max_pref['人数']:,}人")
+            st.subheader(title2)
+            if df2 is not None and len(df2) > 0:
+                fig2 = px.scatter_mapbox(
+                    df2,
+                    lat='緯度',
+                    lon='経度',
+                    hover_name='都道府県',
+                    hover_data=['人数'],
+                    color='人数',
+                    size='人数',
+                    color_continuous_scale='Blues',
+                    size_max=40,
+                    zoom=4.5,
+                    height=500,
+                    range_color=[0, max_val]  # スケール統一
+                )
+                fig2.update_layout(mapbox_style="open-street-map")
+                st.plotly_chart(fig2, use_container_width=True)
+                
+                st.metric("総人数", f"{df2['人数'].sum():,}人")
+    
+    else:  # 数値比較表
+        st.subheader('📊 全パターン数値比較')
         
-        with col3:
-            st.metric("平均", f"{df['人数'].mean():.0f}人")
+        # 全パターンのデータを取得
+        patterns = [
+            ('入国・日本人・男女計', '001', '000', '001'),
+            ('入国・外国人・男女計', '001', '000', '002'),
+            ('出国・日本人・男女計', '002', '000', '001'),
+            ('出国・外国人・男女計', '002', '000', '002'),
+            ('入国・日本人・男性', '001', '001', '001'),
+            ('入国・日本人・女性', '001', '002', '001'),
+            ('入国・外国人・男性', '001', '001', '002'),
+            ('入国・外国人・女性', '001', '002', '002')
+        ]
         
-        # データテーブル
-        st.subheader('📊 都道府県別データ')
+        comparison_data = []
+        for name, cat01, cat02, cat03 in patterns:
+            df = get_estat_data_filtered(cat01, cat02, cat03)
+            if df is not None and len(df) > 0:
+                total = df['人数'].sum()
+                max_pref = df.loc[df['人数'].idxmax()]
+                comparison_data.append({
+                    'パターン': name,
+                    '総人数': f"{total:,}人",
+                    '最多都道府県': max_pref['都道府県'],
+                    '最多人数': f"{max_pref['人数']:,}人"
+                })
         
-        # ランキング表示
-        df_sorted = df.sort_values('人数', ascending=False).reset_index(drop=True)
-        df_sorted.index += 1  # 1から始まるランキング
-        
-        st.dataframe(
-            df_sorted[['都道府県', '人数']],
-            use_container_width=True
-        )
-        
-        # 上位5都道府県のグラフ
-        st.subheader('📈 上位5都道府県')
-        top5 = df_sorted.head(5)
-        
-        fig_bar = px.bar(
-            top5,
-            x='都道府県',
-            y='人数',
-            title=f'{cat01_label}（{cat02_label}・{cat03_label}） 上位5都道府県',
-            color='人数',
-            color_continuous_scale='Blues'
-        )
-        
-        st.plotly_chart(fig_bar, use_container_width=True)
-        
-    else:
-        st.error("データの取得に失敗しました。")
+        if comparison_data:
+            st.dataframe(pd.DataFrame(comparison_data), use_container_width=True)
 
 if __name__ == "__main__":
     main()
