@@ -88,12 +88,12 @@ def get_estat_data_filtered(cat01_filter='001', cat02_filter='000', cat03_filter
 
 def main():
     st.set_page_config(
-        page_title="日本出入国者数マップ（フィルタ機能付き）",
+        page_title="日本出入国者数マップ（比較機能付き）",
         page_icon="🗾",
         layout="wide"
     )
     
-    st.title('🗾 日本出入国者数マップ（フィルタ機能付き）')
+    st.title('🗾 日本出入国者数マップ（比較機能付き）')
     st.write('e-Statデータを使用した都道府県別出入国者数の可視化（2020年10月～2021年9月）')
     
     # サイドバーでフィルタ設定
@@ -123,6 +123,46 @@ def main():
     }
     cat03_label = st.sidebar.selectbox('日本人/外国人', list(cat03_options.keys()))
     cat03_value = cat03_options[cat03_label]
+    
+    # 比較機能
+    st.sidebar.header('🔄 クイック比較')
+    if st.sidebar.button('🇯🇵 日本人 vs 🌍 外国人'):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader('🇯🇵 日本人')
+            df_jp = get_estat_data_filtered(cat01_value, cat02_value, '001')
+            if df_jp is not None and len(df_jp) > 0:
+                st.metric("総人数", f"{df_jp['人数'].sum():,}人")
+                top_jp = df_jp.loc[df_jp['人数'].idxmax()]
+                st.write(f"最多: {top_jp['都道府県']} ({top_jp['人数']:,}人)")
+        
+        with col2:
+            st.subheader('🌍 外国人')
+            df_fg = get_estat_data_filtered(cat01_value, cat02_value, '002')
+            if df_fg is not None and len(df_fg) > 0:
+                st.metric("総人数", f"{df_fg['人数'].sum():,}人")
+                top_fg = df_fg.loc[df_fg['人数'].idxmax()]
+                st.write(f"最多: {top_fg['都道府県']} ({top_fg['人数']:,}人)")
+    
+    if st.sidebar.button('📥 入国 vs 📤 出国'):
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            st.subheader('📥 入国')
+            df_in = get_estat_data_filtered('001', cat02_value, cat03_value)
+            if df_in is not None and len(df_in) > 0:
+                st.metric("総人数", f"{df_in['人数'].sum():,}人")
+                top_in = df_in.loc[df_in['人数'].idxmax()]
+                st.write(f"最多: {top_in['都道府県']} ({top_in['人数']:,}人)")
+        
+        with col2:
+            st.subheader('📤 出国')
+            df_out = get_estat_data_filtered('002', cat02_value, cat03_value)
+            if df_out is not None and len(df_out) > 0:
+                st.metric("総人数", f"{df_out['人数'].sum():,}人")
+                top_out = df_out.loc[df_out['人数'].idxmax()]
+                st.write(f"最多: {top_out['都道府県']} ({top_out['人数']:,}人)")
     
     # データ取得
     with st.spinner('データを取得中...'):
