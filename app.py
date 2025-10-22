@@ -3,14 +3,11 @@ import plotly.express as px
 import pandas as pd
 import requests
 
-def debug_api_call():
-    """API呼び出しの詳細デバッグ"""
+def get_estat_data():
+    """e-Statから出入国者数データを取得"""
     try:
-        st.write("### ステップ1: APIキー取得")
         app_id = st.secrets["e_stat"]["app_id"]
-        st.success(f"✅ APIキー取得成功")
         
-        st.write("### ステップ2: API呼び出し詳細")
         url = 'https://api.e-stat.go.jp/rest/3.0/app/json/getStatsData'
         params = {
             'appId': app_id,
@@ -18,91 +15,156 @@ def debug_api_call():
             'lang': 'J'
         }
         
-        st.write("**リクエスト情報:**")
-        st.write(f"URL: {url}")
-        st.write(f"パラメータ: {params}")
-        
         response = requests.get(url, params=params)
+        data = response.json()
         
-        st.write("**レスポンス情報:**")
-        st.write(f"ステータスコード: {response.status_code}")
-        st.write(f"レスポンスヘッダー: {dict(response.headers)}")
-        
-        if response.status_code == 200:
-            st.success("✅ HTTP通信成功")
+        # 修正: STATUS='0'（文字列）で成功判定
+        if 'GET_STATS_DATA' in data and str(data['GET_STATS_DATA']['RESULT']['STATUS']) == '0':
+            values = data['GET_STATS_DATA']['STATISTICAL_DATA']['DATA_INF']['VALUE']
             
-            try:
-                data = response.json()
-                st.write("**JSONパース成功**")
-                
-                # レスポンス構造確認
-                st.write("**レスポンス構造:**")
-                st.write(f"トップレベルキー: {list(data.keys())}")
-                
-                if 'GET_STATS_DATA' in data:
-                    result = data['GET_STATS_DATA']['RESULT']
-                    status = result.get('STATUS')
-                    message = result.get('ERROR_MSG', '')
-                    
-                    st.write(f"**API結果:**")
-                    st.write(f"STATUS: {status}")
-                    st.write(f"MESSAGE: {message}")
-                    
-                    if status == '0':
-                        st.success("✅ API呼び出し成功！")
-                        
-                        # データ構造確認
-                        if 'STATISTICAL_DATA' in data['GET_STATS_DATA']:
-                            stat_data = data['GET_STATS_DATA']['STATISTICAL_DATA']
-                            st.write("**統計データ構造:**")
-                            st.write(f"キー: {list(stat_data.keys())}")
-                            
-                            if 'DATA_INF' in stat_data:
-                                data_inf = stat_data['DATA_INF']
-                                if 'VALUE' in data_inf:
-                                    values = data_inf['VALUE']
-                                    st.write(f"データ件数: {len(values)}")
-                                    st.write("最初のデータ:")
-                                    st.json(values[0])
-                                else:
-                                    st.error("❌ VALUE キーが見つかりません")
-                            else:
-                                st.error("❌ DATA_INF キーが見つかりません")
-                        else:
-                            st.error("❌ STATISTICAL_DATA キーが見つかりません")
-                    else:
-                        st.error(f"❌ APIエラー: STATUS={status}, MESSAGE={message}")
-                else:
-                    st.error("❌ GET_STATS_DATA キーが見つかりません")
-                    st.write("実際のレスポンス:")
-                    st.json(data)
-                    
-            except Exception as json_error:
-                st.error(f"❌ JSONパースエラー: {json_error}")
-                st.write("生レスポンス:")
-                st.text(response.text[:1000])  # 最初の1000文字
-                
+            # 都道府県マッピング
+            prefectures = {
+                '01000': '北海道', '02000': '青森県', '03000': '岩手県', '04000': '宮城県',
+                '05000': '秋田県', '06000': '山形県', '07000': '福島県', '08000': '茨城県',
+                '09000': '栃木県', '10000': '群馬県', '11000': '埼玉県', '12000': '千葉県',
+                '13000': '東京都', '14000': '神奈川県', '15000': '新潟県', '16000': '富山県',
+                '17000': '石川県', '18000': '福井県', '19000': '山梨県', '20000': '長野県',
+                '21000': '岐阜県', '22000': '静岡県', '23000': '愛知県', '24000': '三重県',
+                '25000': '滋賀県', '26000': '京都府', '27000': '大阪府', '28000': '兵庫県',
+                '29000': '奈良県', '30000': '和歌山県', '31000': '鳥取県', '32000': '島根県',
+                '33000': '岡山県', '34000': '広島県', '35000': '山口県', '36000': '徳島県',
+                '37000': '香川県', '38000': '愛媛県', '39000': '高知県', '40000': '福岡県',
+                '41000': '佐賀県', '42000': '長崎県', '43000': '熊本県', '44000': '大分県',
+                '45000': '宮崎県', '46000': '鹿児島県', '47000': '沖縄県'
+            }
+            
+            # 緯度経度データ
+            coordinates = {
+                '北海道': [43.06, 141.35], '青森県': [40.82, 140.74], '岩手県': [39.70, 141.15],
+                '宮城県': [38.27, 140.87], '秋田県': [39.72, 140.10], '山形県': [38.24, 140.36],
+                '福島県': [37.75, 140.47], '茨城県': [36.34, 140.45], '栃木県': [36.57, 139.88],
+                '群馬県': [36.39, 139.06], '埼玉県': [35.86, 139.65], '千葉県': [35.61, 140.12],
+                '東京都': [35.68, 139.76], '神奈川県': [35.45, 139.64], '新潟県': [37.90, 139.02],
+                '富山県': [36.70, 137.21], '石川県': [36.59, 136.63], '福井県': [36.06, 136.22],
+                '山梨県': [35.66, 138.57], '長野県': [36.65, 138.18], '岐阜県': [35.39, 136.72],
+                '静岡県': [34.98, 138.38], '愛知県': [35.18, 136.91], '三重県': [34.73, 136.51],
+                '滋賀県': [35.00, 135.87], '京都府': [35.02, 135.75], '大阪府': [34.69, 135.50],
+                '兵庫県': [34.69, 135.18], '奈良県': [34.69, 135.83], '和歌山県': [34.23, 135.17],
+                '鳥取県': [35.50, 134.23], '島根県': [35.47, 133.05], '岡山県': [34.66, 133.92],
+                '広島県': [34.40, 132.46], '山口県': [34.19, 131.47], '徳島県': [34.07, 134.56],
+                '香川県': [34.34, 134.04], '愛媛県': [33.84, 132.77], '高知県': [33.56, 133.53],
+                '福岡県': [33.61, 130.42], '佐賀県': [33.25, 130.30], '長崎県': [32.74, 129.87],
+                '熊本県': [32.79, 130.74], '大分県': [33.24, 131.61], '宮崎県': [31.91, 131.42],
+                '鹿児島県': [31.56, 130.56], '沖縄県': [26.21, 127.68]
+            }
+            
+            # データ変換
+            map_data = []
+            for value in values:
+                area_code = value.get('@area')
+                if area_code in prefectures:
+                    pref_name = prefectures[area_code]
+                    if pref_name in coordinates:
+                        map_data.append({
+                            '都道府県': pref_name,
+                            '出入国者数': int(value.get('$', 0)),
+                            '緯度': coordinates[pref_name][0],
+                            '経度': coordinates[pref_name][1]
+                        })
+            
+            return pd.DataFrame(map_data)
         else:
-            st.error(f"❌ HTTP通信失敗: {response.status_code}")
-            st.write("エラーレスポンス:")
-            st.text(response.text[:1000])
-            
+            st.error("APIからデータを取得できませんでした")
+            return None
+        
     except Exception as e:
-        st.error(f"❌ 予期しないエラー: {e}")
-        import traceback
-        st.code(traceback.format_exc())
+        st.error(f"データ取得エラー: {e}")
+        return None
 
 def main():
     st.set_page_config(
-        page_title="API詳細デバッグ",
-        page_icon="🔍",
+        page_title="日本出入国者数マップ",
+        page_icon="🗾",
         layout="wide"
     )
     
-    st.title('🔍 API詳細デバッグ')
+    st.title('🗾 日本出入国者数マップ')
+    st.write('e-Statデータを使用した都道府県別出入国者数の可視化（2020年）')
     
-    if st.button('🔍 詳細デバッグ実行'):
-        debug_api_call()
+    # データ取得
+    with st.spinner('データを取得中...'):
+        df = get_estat_data()
+    
+    if df is not None and len(df) > 0:
+        # 地図表示
+        fig = px.scatter_mapbox(
+            df,
+            lat='緯度',
+            lon='経度',
+            hover_name='都道府県',
+            hover_data=['出入国者数'],
+            color='出入国者数',
+            size='出入国者数',
+            color_continuous_scale='Viridis',
+            size_max=50,
+            zoom=4.5,
+            height=600,
+            title='都道府県別出入国者数（2020年）'
+        )
+        
+        fig.update_layout(
+            mapbox_style="open-street-map",
+            coloraxis_colorbar=dict(
+                title="出入国者数（人）"
+            )
+        )
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # 統計情報
+        col1, col2, col3 = st.columns(3)
+        
+        with col1:
+            st.metric("総出入国者数", f"{df['出入国者数'].sum():,}人")
+        
+        with col2:
+            max_pref = df.loc[df['出入国者数'].idxmax()]
+            st.metric("最多", f"{max_pref['都道府県']}: {max_pref['出入国者数']:,}人")
+        
+        with col3:
+            st.metric("平均", f"{df['出入国者数'].mean():.0f}人")
+        
+        # データテーブル
+        st.subheader('📊 都道府県別データ')
+        
+        # ランキング表示
+        df_sorted = df.sort_values('出入国者数', ascending=False).reset_index(drop=True)
+        df_sorted.index += 1  # 1から始まるランキング
+        
+        st.dataframe(
+            df_sorted[['都道府県', '出入国者数']],
+            use_container_width=True
+        )
+        
+        # 簡単な分析
+        st.subheader('📈 簡単な分析')
+        
+        # 上位5都道府県のグラフ
+        top5 = df_sorted.head(5)
+        
+        fig_bar = px.bar(
+            top5,
+            x='都道府県',
+            y='出入国者数',
+            title='出入国者数 上位5都道府県',
+            color='出入国者数',
+            color_continuous_scale='Blues'
+        )
+        
+        st.plotly_chart(fig_bar, use_container_width=True)
+        
+    else:
+        st.error("データの取得に失敗しました。")
 
 if __name__ == "__main__":
     main()
