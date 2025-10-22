@@ -5,7 +5,6 @@ import numpy as np
 import time
 
 def create_sample_data():
-    """Sample data creation (will be replaced with e-Stat data)"""
     prefectures = ['北海道', '青森', '岩手', '宮城', '秋田', '山形', '福島', 
                    '茨城', '栃木', '群馬', '埼玉', '千葉', '東京', '神奈川']
     
@@ -123,4 +122,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-この修正により、構文エラーが解決
