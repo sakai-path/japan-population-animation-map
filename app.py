@@ -26,40 +26,37 @@ def test_specific_stats(stats_id):
             if status == '0':
                 st.success(f"✅ 統計表ID {stats_id} のデータ取得成功！")
                 
-                # データ構造を確認
-                st.write("### データ構造:")
                 statistical_data = data['GET_STATS_DATA']['STATISTICAL_DATA']
                 
-                # 統計表の基本情報
                 table_inf = statistical_data['TABLE_INF']
                 st.write(f"**統計表名**: {table_inf['TITLE']}")
                 st.write(f"**統計名**: {table_inf['STATISTICS_NAME']}")
                 
-                # 分類情報
                 if 'CLASS_INF' in statistical_data:
                     st.write("### 分類情報:")
                     class_inf = statistical_data['CLASS_INF']['CLASS_OBJ']
                     for cls in class_inf:
                         st.write(f"- {cls['@name']}: {cls['@id']}")
                 
-                # データサンプル
                 if 'DATA_INF' in statistical_data:
                     values = statistical_data['DATA_INF']['VALUE']
                     st.write(f"### データ件数: {len(values)}")
-                    st.write("### データサンプル（最初の5件）:")
-                    for i, value in enumerate(values[:5]):
-                        st.write(f"{i+1}. {value}")
+                    if len(values) > 0:
+                        st.write("### データサンプル（最初の5件）:")
+                        for i, value in enumerate(values[:5]):
+                            st.write(f"{i+1}. {value}")
+                    else:
+                        st.warning("データが0件です")
                 
                 return data
             else:
                 error_msg = result.get('ERROR_MSG', '不明なエラー')
-                st.error(f"❌ APIエラー: {error_msg}")
+                st.error(f"❌ 統計表ID {stats_id} - APIエラー: {error_msg}")
         else:
-            st.error("❌ 予期しないレスポンス形式")
-            st.json(data)
+            st.error(f"❌ 統計表ID {stats_id} - 予期しないレスポンス形式")
             
     except Exception as e:
-        st.error(f"❌ エラー: {e}")
+        st.error(f"❌ 統計表ID {stats_id} - エラー: {e}")
     
     return None
 
@@ -106,10 +103,28 @@ def main():
     st.write('2000年〜2020年の人口変化を時系列で可視化')
     
     st.sidebar.header('API設定')
-    stats_id = st.sidebar.text_input('統計表ID', '0004029363')
-    if st.sidebar.button('🔍 統計表テスト'):
-        if stats_id:
+    
+    # 有名な統計表ID候補
+    candidate_ids = [
+        '0003448238',  # 令和2年国勢調査
+        '0003448239',  # 令和2年国勢調査 都道府県別
+        '0003312212',  # 平成27年国勢調査
+        '0003109687',  # 平成22年国勢調査
+        '0000030001',  # 人口推計
+        '0000020201'   # 住民基本台帳
+    ]
+    
+    st.sidebar.write("### 国勢調査・人口統計ID:")
+    for stats_id in candidate_ids:
+        if st.sidebar.button(f'🔍 {stats_id}'):
             test_specific_stats(stats_id)
+    
+    # 手動入力
+    st.sidebar.write("### 手動入力:")
+    manual_id = st.sidebar.text_input('統計表ID', '')
+    if st.sidebar.button('🔍 手動テスト'):
+        if manual_id:
+            test_specific_stats(manual_id)
     
     df = create_sample_data()
     
