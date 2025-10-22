@@ -5,6 +5,9 @@ import numpy as np
 import time
 import requests
 
+def _as_list(x):
+    return x if isinstance(x, list) else ([] if x is None else [x])
+
 def test_specific_stats(stats_id):
     try:
         app_id = st.secrets["e_stat"]["app_id"]
@@ -21,7 +24,11 @@ def test_specific_stats(stats_id):
         
         if 'GET_STATS_DATA' in data:
             result = data['GET_STATS_DATA']['RESULT']
-            status = result['STATUS']
+            status = str(result.get('STATUS'))
+            msg = result.get('ERROR_MSG', '')
+            
+            # 成否をまず表示（デバッグ用）
+            st.write(f"RESULT: STATUS={status} / MESSAGE={msg}")
             
             if status == '0':
                 st.success(f"✅ 統計表ID {stats_id} のデータ取得成功！")
@@ -34,24 +41,25 @@ def test_specific_stats(stats_id):
                 
                 if 'CLASS_INF' in statistical_data:
                     st.write("### 分類情報:")
-                    class_inf = statistical_data['CLASS_INF']['CLASS_OBJ']
-                    for cls in class_inf:
+                    class_objs = _as_list(statistical_data['CLASS_INF'].get('CLASS_OBJ', []))
+                    for cls in class_objs:
                         st.write(f"- {cls['@name']}: {cls['@id']}")
                 
                 if 'DATA_INF' in statistical_data:
-                    values = statistical_data['DATA_INF']['VALUE']
+                    values = _as_list(statistical_data.get('DATA_INF', {}).get('VALUE'))
                     st.write(f"### データ件数: {len(values)}")
+                    
                     if len(values) > 0:
                         st.write("### データサンプル（最初の5件）:")
                         for i, value in enumerate(values[:5]):
                             st.write(f"{i+1}. {value}")
                     else:
-                        st.warning("データが0件です")
+                        st.warning("データが0件でした")
                 
                 return data
             else:
-                error_msg = result.get('ERROR_MSG', '不明なエラー')
-                st.error(f"❌ 統計表ID {stats_id} - APIエラー: {error_msg}")
+                st.error(f"❌ APIエラー (STATUS={status}): {msg or '不明なエラー'}")
+                return None
         else:
             st.error(f"❌ 統計表ID {stats_id} - 予期しないレスポンス形式")
             
@@ -106,15 +114,15 @@ def main():
     
     # 有名な統計表ID候補
     candidate_ids = [
+        '0000020201',  # 住民基本台帳人口移動報告
         '0003448238',  # 令和2年国勢調査
         '0003448239',  # 令和2年国勢調査 都道府県別
         '0003312212',  # 平成27年国勢調査
         '0003109687',  # 平成22年国勢調査
-        '0000030001',  # 人口推計
-        '0000020201'   # 住民基本台帳
+        '0000030001'   # 人口推計
     ]
     
-    st.sidebar.write("### 国勢調査・人口統計ID:")
+    st.sidebar.write("### 統計表IDテスト:")
     for stats_id in candidate_ids:
         if st.sidebar.button(f'🔍 {stats_id}'):
             test_specific_stats(stats_id)
