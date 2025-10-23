@@ -2,7 +2,11 @@
 
 e-Stat（政府統計の総合窓口）のデータを使用した、都道府県別出入国者数のインタラクティブ可視化アプリです。
 
-https://japan-population-animation-map-g6xspb2vqe4twh8b286sbz.streamlit.app/
+**デモサイト**: https://japan-population-animation-map-g6xspb2vqe4twh8b286sbz.streamlit.app/
+
+## 概要
+
+このアプリケーションは、日本の出入国統計データを視覚的に分析できるWebアプリケーションです。ユーザーは様々な条件でデータをフィルタリングし、地図上で出入国者数の分布を確認できます。Skywork Agentとの対話を通じて開発されました。
 
 ## データについて
 
@@ -55,8 +59,12 @@ https://japan-population-animation-map-g6xspb2vqe4twh8b286sbz.streamlit.app/
 
 ### 2. ローカル実行
 ```bash
+# リポジトリをクローン
+git clone https://github.com/yourusername/japan-immigration-map.git
+cd japan-immigration-map
+
 # 依存関係をインストール
-pip install streamlit plotly pandas requests
+pip install -r requirements.txt
 
 # APIキーを設定
 mkdir .streamlit
@@ -65,3 +73,78 @@ echo 'app_id = "your_api_key_here"' >> .streamlit/secrets.toml
 
 # アプリを起動
 streamlit run app.py
+```
+
+### 3. Streamlit Cloudでのデプロイ
+1. GitHubリポジトリを作成してapp.pyをアップロード
+2. [Streamlit Cloud](https://streamlit.io/cloud)でアプリをデプロイ
+3. Settings > Secrets でAPIキーを設定:
+   ```toml
+   [e_stat]
+   app_id = "your_api_key_here"
+   ```
+
+## 使用方法
+
+### 基本的な使い方
+1. サイドバーで表示モードを選択
+2. フィルタ条件を設定
+3. 地図とグラフで結果を確認
+
+### 効果的な分析方法
+- **地域特性の把握**: 都道府県フィルタで特定地域を詳細分析
+- **属性別比較**: 左右比較表示で日本人/外国人の違いを確認
+- **全体傾向の把握**: 数値比較表で全パターンを俯瞰
+- **動的な変化**: 条件変化による影響を視覚的に確認
+
+## 発見できる洞察
+
+### 地域特性
+- **東京都**: 外国人入国者数が圧倒的に多い
+- **沖縄県**: 観光地としての特徴が数値に反映
+- **北海道**: 広域での出入国パターン
+
+### 属性別傾向
+- **日本人 vs 外国人**: 地域による偏りの違い
+- **入国 vs 出国**: ほぼ同等だが微細な差異
+- **男女別**: 性別による移動パターンの違い
+
+## ファイル構成
+
+```
+├── app.py              # メインアプリケーション
+├── requirements.txt    # 依存関係
+├── README.md          # このファイル
+└── .streamlit/
+    └── secrets.toml   # APIキー設定（ローカル用）
+```
+
+## 必要な依存関係 (requirements.txt)
+
+```
+streamlit>=1.28.0
+plotly>=5.17.0
+pandas>=2.1.0
+requests>=2.31.0
+```
+
+## 開発について
+
+このアプリケーションは、Skywork Agentとの対話を通じて開発されました。e-Stat APIの活用方法から、Streamlitでのインタラクティブな可視化まで、段階的に機能を追加して完成させました。
+
+### 開発プロセス
+1. **データ探索**: e-Stat APIの調査とデータ構造の理解
+2. **基本機能実装**: 地図表示とフィルタリング機能
+3. **比較機能追加**: 左右比較表示と数値比較表
+4. **UI改善**: 都道府県フィルタとアニメーション機能
+5. **最終調整**: エラーハンドリングとユーザビリティ向上
+
+## 謝辞
+
+- **データ提供**: e-Stat（政府統計の総合窓口）
+- **地図データ**: OpenStreetMap
+- **開発フレームワーク**: Streamlit, Plotly
+- **開発支援**: Skywork Agent
+
+---
+
