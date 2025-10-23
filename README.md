@@ -2,6 +2,8 @@
 
 e-Stat（政府統計の総合窓口）のデータを使用した、都道府県別出入国者数のインタラクティブ可視化アプリです。
 
+https://japan-population-animation-map-g6xspb2vqe4twh8b286sbz.streamlit.app/
+
 ## データについて
 
 - **データソース**: e-Stat API（統計表ID: 0003448239）
